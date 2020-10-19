@@ -77,6 +77,38 @@ struct SparseMatrixAlgorithms;
  *
  */
 
+// Macros
+
+/**
+ * These macros make code a lot more readable and streamline common tasks.
+ */
+
+// Iterate on all rows, the row index is 'row'
+#define ITERATE_ON_ALL_ROWS                                                    \
+    const size_type nrows = nRows();                                           \
+    for (size_type row = 0; row != nrows; ++row)
+
+// Iterate on a single row, with two pointers: 'ind' and 'nz'
+#define ITERATE_ON_ROW                                                         \
+    size_type *ind = ind_begin_(row), *ind_end = ind_end_(row);                \
+    value_type *nz = nz_begin_(row);                                           \
+    for (; ind != ind_end; ++ind, ++nz)
+
+// Iterate on all cols, the col index is 'col'
+#define ITERATE_ON_ALL_COLS                                                    \
+    const size_type ncols = nCols();                                           \
+    for (size_type col = 0; col != ncols; ++col)
+
+// Iterate on all the rows inside [begin_row, end_row)
+#define ITERATE_ON_BOX_ROWS                                                    \
+    for (size_type row = begin_row; row != end_row; ++row)
+
+// Iterate on all the columns inside [begin_col end_col)
+#define ITERATE_ON_BOX_COLS                                                         \
+    size_type *ind = NULL, *ind_end = NULL;                                         \
+    value_type *nz = nz_begin_(row) + pos_(row, begin_col, end_col, ind, ind_end);  \
+    for (; ind != ind_end; ++ind, ++nz)
+
 /*
  * Implementation notes:
  * ====================
@@ -136,229 +168,19 @@ public:
   typedef ijv<size_type, value_type> IJV;
 
 protected:
-  size_type nrows_;     // number of rows
-  size_type nrows_max_; // max size of nnzr_, ind_ and nz_
-  size_type ncols_;     // number of columns
-  size_type *nnzr_;     // number of non-zeros on each row
-  size_type *ind_mem_;  // memory of indices when compact
-  value_type *nz_mem_;  // memory of values when compact
-  size_type **ind_;     // indices of non-zeros on each row
-  value_type **nz_;     // values of non-zeros on each row
-  // size_type *row_alloc_;
+  size_type nrows_;          // number of rows
+  size_type nrows_max_;      // max size of nnzr_, ind_ and nz_
+  size_type ncols_;          // number of columns
+  size_type *nnzr_;          // number of non-zeros on each row
+  size_type *ind_mem_;       // memory of indices when compact
+  value_type *nz_mem_;       // memory of values when compact
+  size_type **ind_;          // indices of non-zeros on each row
+  value_type **nz_;          // values of non-zeros on each row
   size_type *indb_;          // buffer for indices of non-zeros
   value_type *nzb_;          // buffer for values of non-zeros
   IsNearlyZero<DTZ> isZero_; // test for zero/non-zero
 
   friend struct SparseMatrixAlgorithms;
-
-// Macros
-
-/**
- * These macros make code a lot more readable and streamline common tasks.
- */
-
-// Iterate on all rows, the row index is 'row'
-#define ITERATE_ON_ALL_ROWS                                                    \
-  const size_type nrows = nRows();                                             \
-  for (size_type row = 0; row != nrows; ++row)
-
-// Iterate on a single row, with two pointers: 'ind' and 'nz'
-#define ITERATE_ON_ROW                                                         \
-  size_type *ind = ind_begin_(row), *ind_end = ind_end_(row);                  \
-  value_type *nz = nz_begin_(row);                                             \
-  for (; ind != ind_end; ++ind, ++nz)
-
-// Iterate on all cols, the col index is 'col'
-#define ITERATE_ON_ALL_COLS                                                    \
-  const size_type ncols = nCols();                                             \
-  for (size_type col = 0; col != ncols; ++col)
-
-// Iterate on all the rows inside [begin_row, end_row)
-#define ITERATE_ON_BOX_ROWS                                                    \
-  for (size_type row = begin_row; row != end_row; ++row)
-
-// Iterate on all the columns inside [begin_col end_col)
-#define ITERATE_ON_BOX_COLS                                                    \
-  size_type *ind = NULL, *ind_end = NULL;                                      \
-  value_type *nz =                                                             \
-      nz_begin_(row) + pos_(row, begin_col, end_col, ind, ind_end);            \
-  for (; ind != ind_end; ++ind, ++nz)
-
-  // ASSERTS
-
-  /**
-   * These common asserts also make the code more streamlined and more readable.
-   */
-  inline void assert_not_zero_value_(const value_type &val,
-                                     const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    NTA_ASSERT(!isZero_(val))
-        << "SparseMatrix " << where << ": Zero value should be != 0";
-#endif
-  }
-
-  inline void assert_valid_row_(size_type row, const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    NTA_ASSERT(row >= 0 && row < nRows())
-        << "SparseMatrix " << where << ": Invalid row index: " << row
-        << " - Should be >= 0 and < " << nRows();
-#endif
-  }
-
-  inline void assert_valid_col_(size_type col, const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    NTA_ASSERT(col >= 0 && col < nCols())
-        << "SparseMatrix " << where << ": Invalid col index: " << col
-        << " - Should be >= 0 and < " << nCols();
-#endif
-  }
-
-  inline void assert_valid_row_col_(size_type row, size_type col,
-                                    const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    assert_valid_row_(row, where);
-    assert_valid_col_(col, where);
-#endif
-  }
-
-  inline void assert_valid_row_ptr_(size_type row, size_type *ptr,
-                                    const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    NTA_ASSERT(ind_begin_(row) <= ptr && ptr <= ind_end_(row))
-        << "SparseMatrix " << where << ": Invalid row pointer";
-#endif
-  }
-
-  inline void assert_valid_row_range_(size_type row_begin, size_type row_end,
-                                      const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    assert_valid_row_(row_begin, where);
-    if (row_begin < row_end)
-      assert_valid_row_(row_end - 1, where);
-    NTA_ASSERT(row_begin <= row_end)
-        << "SparseMatrix " << where << ": Invalid row range: [" << row_begin
-        << ".." << row_end << "): "
-        << "- Beginning should be <= end of range";
-#endif
-  }
-
-  inline void assert_valid_col_range_(size_type col_begin, size_type col_end,
-                                      const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    assert_valid_col_(col_begin, where);
-    if (col_begin < col_end)
-      assert_valid_col_(col_end - 1, where);
-    NTA_ASSERT(col_begin <= col_end)
-        << "SparseMatrix " << where << ": Invalid col range: [" << col_begin
-        << ".." << col_end << "): "
-        << "- Beginning should be <= end of range";
-#endif
-  }
-
-  inline void assert_valid_box_(size_type row_begin, size_type row_end,
-                                size_type col_begin, size_type col_end,
-                                const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    assert_valid_row_range_(row_begin, row_end, where);
-    assert_valid_col_range_(col_begin, col_end, where);
-#endif
-  }
-
-  template <typename It>
-  inline void assert_valid_row_it_range_(It begin, It end,
-                                         const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    // Could be input or output iterator
-    ASSERT_VALID_RANGE(begin, end, where);
-    while (begin != end) {
-      assert_valid_row_(*begin, where);
-      ++begin;
-    }
-#endif
-  }
-
-  template <typename It>
-  inline void assert_valid_col_it_range_(It begin, It end,
-                                         const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-    // Could be input or output iterator
-    ASSERT_VALID_RANGE(begin, end, where);
-    while (begin != end) {
-      assert_valid_col_(*begin, where);
-      ++begin;
-    }
-#endif
-  }
-
-  template <typename InputIterator1>
-  inline void assert_valid_sorted_index_range_(size_type m,
-                                               InputIterator1 ind_it,
-                                               InputIterator1 ind_end,
-                                               const char *where) const {
-#ifdef NTA_ASSERTIONS_ON
-
-    ASSERT_INPUT_ITERATOR(InputIterator1);
-
-    NTA_ASSERT(ind_end - ind_it >= 0)
-        << "SparseMatrix " << where << ": Invalid iterators";
-
-    for (size_type j = 0, prev = 0; ind_it != ind_end; ++ind_it, ++j) {
-
-      size_type index = *ind_it;
-
-      NTA_ASSERT(0 <= index && index < m)
-          << "SparseMatrix " << where << ": Invalid index: " << index
-          << " - Should be >= 0 and < " << m;
-
-      if (j > 0) {
-        NTA_ASSERT(prev < index)
-            << "SparseMatrix " << where
-            << ": Indices need to be in strictly increasing order"
-            << " without duplicates, found: " << prev << " and " << index;
-      }
-
-      prev = index;
-    }
-#endif
-  }
-
-  template <typename InputIterator1, typename InputIterator2>
-  inline void assert_valid_ivp_range_(size_type m, InputIterator1 ind_it,
-                                      InputIterator1 ind_end,
-                                      InputIterator2 nz_it,
-                                      const char *where) const {
-
-#ifdef NTA_ASSERTIONS_ON
-
-    ASSERT_INPUT_ITERATOR(InputIterator1);
-    ASSERT_INPUT_ITERATOR(InputIterator2);
-
-    NTA_ASSERT(ind_end - ind_it >= 0)
-        << "SparseMatrix " << where << ": Invalid iterators";
-
-    for (size_type j = 0, prev = 0; ind_it != ind_end; ++ind_it, ++nz_it, ++j) {
-
-      size_type index = *ind_it;
-
-      NTA_ASSERT(0 <= index && index < m)
-          << "SparseMatrix " << where << ": Invalid index: " << index
-          << " - Should be >= 0 and < " << m;
-
-      NTA_ASSERT(!isZero_(*nz_it))
-          << "SparseMatrix " << where << ": Passed zero at index: " << j
-          << " - Should pass non-zeros only";
-
-      if (j > 0) {
-        NTA_ASSERT(prev < index)
-            << "SparseMatrix " << where
-            << ": Indices need to be in strictly increasing order"
-            << " without duplicates, found: " << prev << " and " << index;
-      }
-
-      prev = index;
-    }
-#endif
-  }
 
   // PROTECTED METHODS
 
@@ -11343,6 +11165,183 @@ public:
   inline void operator*=(const value_type &val) { multiply(val); }
 
   inline void operator/=(const value_type &val) { divide(val); }
+
+  // ASSERTS
+protected:
+
+  /**
+   * These common asserts also make the code more streamlined and more readable.
+   */
+  inline void assert_not_zero_value_(const value_type &val,
+                                     const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    NTA_ASSERT(!isZero_(val))
+        << "SparseMatrix " << where << ": Zero value should be != 0";
+#endif
+  }
+
+  inline void assert_valid_row_(size_type row, const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    NTA_ASSERT(row >= 0 && row < nRows())
+        << "SparseMatrix " << where << ": Invalid row index: " << row
+        << " - Should be >= 0 and < " << nRows();
+#endif
+  }
+
+  inline void assert_valid_col_(size_type col, const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    NTA_ASSERT(col >= 0 && col < nCols())
+        << "SparseMatrix " << where << ": Invalid col index: " << col
+        << " - Should be >= 0 and < " << nCols();
+#endif
+  }
+
+  inline void assert_valid_row_col_(size_type row, size_type col,
+                                    const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    assert_valid_row_(row, where);
+    assert_valid_col_(col, where);
+#endif
+  }
+
+  inline void assert_valid_row_ptr_(size_type row, size_type *ptr,
+                                    const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    NTA_ASSERT(ind_begin_(row) <= ptr && ptr <= ind_end_(row))
+        << "SparseMatrix " << where << ": Invalid row pointer";
+#endif
+  }
+
+  inline void assert_valid_row_range_(size_type row_begin, size_type row_end,
+                                      const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    assert_valid_row_(row_begin, where);
+    if (row_begin < row_end)
+      assert_valid_row_(row_end - 1, where);
+    NTA_ASSERT(row_begin <= row_end)
+        << "SparseMatrix " << where << ": Invalid row range: [" << row_begin
+        << ".." << row_end << "): "
+        << "- Beginning should be <= end of range";
+#endif
+  }
+
+  inline void assert_valid_col_range_(size_type col_begin, size_type col_end,
+                                      const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    assert_valid_col_(col_begin, where);
+    if (col_begin < col_end)
+      assert_valid_col_(col_end - 1, where);
+    NTA_ASSERT(col_begin <= col_end)
+        << "SparseMatrix " << where << ": Invalid col range: [" << col_begin
+        << ".." << col_end << "): "
+        << "- Beginning should be <= end of range";
+#endif
+  }
+
+  inline void assert_valid_box_(size_type row_begin, size_type row_end,
+                                size_type col_begin, size_type col_end,
+                                const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    assert_valid_row_range_(row_begin, row_end, where);
+    assert_valid_col_range_(col_begin, col_end, where);
+#endif
+  }
+
+  template <typename It>
+  inline void assert_valid_row_it_range_(It begin, It end,
+                                         const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    // Could be input or output iterator
+    ASSERT_VALID_RANGE(begin, end, where);
+    while (begin != end) {
+      assert_valid_row_(*begin, where);
+      ++begin;
+    }
+#endif
+  }
+
+  template <typename It>
+  inline void assert_valid_col_it_range_(It begin, It end,
+                                         const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+    // Could be input or output iterator
+    ASSERT_VALID_RANGE(begin, end, where);
+    while (begin != end) {
+      assert_valid_col_(*begin, where);
+      ++begin;
+    }
+#endif
+  }
+
+  template <typename InputIterator1>
+  inline void assert_valid_sorted_index_range_(size_type m,
+                                               InputIterator1 ind_it,
+                                               InputIterator1 ind_end,
+                                               const char *where) const {
+#ifdef NTA_ASSERTIONS_ON
+
+    ASSERT_INPUT_ITERATOR(InputIterator1);
+
+    NTA_ASSERT(ind_end - ind_it >= 0)
+        << "SparseMatrix " << where << ": Invalid iterators";
+
+    for (size_type j = 0, prev = 0; ind_it != ind_end; ++ind_it, ++j) {
+
+      size_type index = *ind_it;
+
+      NTA_ASSERT(0 <= index && index < m)
+          << "SparseMatrix " << where << ": Invalid index: " << index
+          << " - Should be >= 0 and < " << m;
+
+      if (j > 0) {
+        NTA_ASSERT(prev < index)
+            << "SparseMatrix " << where
+            << ": Indices need to be in strictly increasing order"
+            << " without duplicates, found: " << prev << " and " << index;
+      }
+
+      prev = index;
+    }
+#endif
+  }
+
+  template <typename InputIterator1, typename InputIterator2>
+  inline void assert_valid_ivp_range_(size_type m, InputIterator1 ind_it,
+                                      InputIterator1 ind_end,
+                                      InputIterator2 nz_it,
+                                      const char *where) const {
+
+#ifdef NTA_ASSERTIONS_ON
+
+    ASSERT_INPUT_ITERATOR(InputIterator1);
+    ASSERT_INPUT_ITERATOR(InputIterator2);
+
+    NTA_ASSERT(ind_end - ind_it >= 0)
+        << "SparseMatrix " << where << ": Invalid iterators";
+
+    for (size_type j = 0, prev = 0; ind_it != ind_end; ++ind_it, ++nz_it, ++j) {
+
+      size_type index = *ind_it;
+
+      NTA_ASSERT(0 <= index && index < m)
+          << "SparseMatrix " << where << ": Invalid index: " << index
+          << " - Should be >= 0 and < " << m;
+
+      NTA_ASSERT(!isZero_(*nz_it))
+          << "SparseMatrix " << where << ": Passed zero at index: " << j
+          << " - Should pass non-zeros only";
+
+      if (j > 0) {
+        NTA_ASSERT(prev < index)
+            << "SparseMatrix " << where
+            << ": Indices need to be in strictly increasing order"
+            << " without duplicates, found: " << prev << " and " << index;
+      }
+
+      prev = index;
+    }
+#endif
+  }
 
 }; // end class SparseMatrix
 

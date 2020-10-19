@@ -83,9 +83,11 @@ public:
   }
 
   void toCoord(UInt index, vector<UInt> &coord) {
-    coord.clear();
+    // coord.clear();
+    coord.resize(bounds_.size());
     for (UInt i = 0; i < bounds_.size(); i++) {
-      coord.push_back((index / bounds_[i]) % dimensions_[i]);
+      coord[i] = (index / bounds_[i]) % dimensions_[i];
+    //   coord.push_back((index / bounds_[i]) % dimensions_[i]);
     }
   };
 

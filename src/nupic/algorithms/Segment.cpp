@@ -372,9 +372,11 @@ void Segment::freeNSynapses(UInt numToFree,
   //----------------------------------------------------------------------
   // Create the final list of synapses we will remove
   static std::vector<UInt> del;
-  del.clear(); // purge residual data
+//   del.clear(); // purge residual data
+  del.resize(numToFree);
   for (UInt i = 0; i < numToFree; i++) {
-    del.push_back(candidates[i].srcCellIdx());
+    del[i] = candidates[i].srcCellIdx();
+    // del.push_back(candidates[i].srcCellIdx());
     UInt cellIdx = _synapses[candidates[i].srcCellIdx()].srcCellIdx();
     removed.push_back(cellIdx);
   }
